@@ -5,6 +5,8 @@
 import pygame
 import random
 
+import physics
+
 ################################
 
 WINDOW_WIDTH = 640
@@ -28,7 +30,8 @@ def handleEvent(event):
         keys = pygame.key.get_pressed()
 
         if keys[pygame.K_SPACE]:
-            print("Spacebar has been pressed")
+            #print("Spacebar has been pressed")
+            physics.handleCollisions(state["dt"], state["objects"])
 
         if keys[pygame.K_ESCAPE]:
             state["running"] = False
@@ -37,8 +40,8 @@ def handleEvent(event):
     elif event.type == pygame.KEYUP:
         keys = pygame.key.get_pressed()
 
-        if not keys[pygame.K_SPACE]:
-            print("Spacebar has been released")
+        #if not keys[pygame.K_SPACE]:
+            #print("Spacebar has been released")
 
     # Right mouse button has been pressed
     elif event.type == pygame.MOUSEBUTTONDOWN and pygame.mouse.get_pressed()[0]:
@@ -113,6 +116,7 @@ if __name__ == "__main__":
     state["dragObject"] = -1 # The UID of the object being dragged. Is set to -1 when not dragging because UIDs are only positive.
     state["dragDelta"] = pygame.Vector2(0, 0) # The difference between the object's position and the mouse's position
 
+    state["bounds"] = [pygame.Vector2(0, 0), pygame.Vector2(WINDOW_WIDTH, WINDOW_HEIGHT)]
     state["objects"] = {}
 
     colors = [
@@ -145,14 +149,25 @@ if __name__ == "__main__":
 #    state["objects"][uid2]["radius"] = 150
 #    state["objects"][uid2]["color"] = (255, 60, 60)
 
+    physics.begin()
+
     # Program loop
     while state["running"]:
         # Handle all available events
         for event in pygame.event.get():
             handleEvent(event)
 
+        # Game code goes there
         update()
+
+        # Physics updates
+        # At the moment atleast 2 substeps are necessary
+        substeps = 2
+        for i in range(substeps):
+            physics.update(state["dt"]/substeps, state["objects"], state["bounds"])
+
         draw()
+        #physics.drawDebug(state["screen"]) # Draw on top
 
         # Update the window
         pygame.display.flip()
