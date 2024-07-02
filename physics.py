@@ -13,36 +13,43 @@ def update(dt, objects, bounds):
 
     # Collisions between circles
     for uid1, obj1 in objects.items():
+        if "radius" not in obj1:
+            continue  # Skip objects without a radius
+
         for uid2, obj2 in objects.items():
-            # Make sure we have two different objects
-            if uid1 == uid2: continue
+            if uid1 == uid2 or "radius" not in obj2:
+                continue  # Skip same object and objects without a radius
 
             if (obj1["position"] - obj2["position"]).length() < obj1["radius"] + obj2["radius"]:
                 # Check if the collision has been registered before
                 isNew = True
                 for collision in _collisions:
                     if (collision[0]["uid"] == uid1 and collision[1]["uid"] == uid2) or \
-                       (collision[0]["uid"] == uid2 and collision[1]["uid"] == uid1):
+                            (collision[0]["uid"] == uid2 and collision[1]["uid"] == uid1):
                         isNew = False
                         break
 
                 if not isNew: continue
 
                 distance = (obj1["position"] - obj2["position"]).length()
-                delta = (obj1["position"] - obj2["position"]).normalize() * (obj1["radius"] + obj2["radius"] - distance)/2
+                delta = (obj1["position"] - obj2["position"]).normalize() * (
+                            obj1["radius"] + obj2["radius"] - distance) / 2
 
                 collision = [{}, {}]
                 collision[0]["uid"] = uid1
-                collision[0]["position"] = obj1["position"] # For debug purposes
+                collision[0]["position"] = obj1["position"]  # For debug purposes
                 collision[0]["delta"] = delta
                 collision[1]["uid"] = uid2
-                collision[1]["position"] = obj2["position"] # For debug purposes
+                collision[1]["position"] = obj2["position"]  # For debug purposes
                 collision[1]["delta"] = -delta
-                
+
                 _collisions.append(collision)
 
     # Collisions with world boundaries
     for uid, obj in objects.items():
+        if "radius" not in obj:
+            continue  # Skip objects without a radius
+
         delta = pygame.Vector2(0, 0)
 
         # Not using elif here and using +=, because a circle might intersect multiple borders (at a corner)

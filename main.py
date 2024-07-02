@@ -47,7 +47,7 @@ def handleEvent(event):
     elif event.type == pygame.MOUSEBUTTONDOWN and pygame.mouse.get_pressed()[0]:
         # Find a circle to drag
         for uid, obj in state["objects"].items():
-            if (pygame.mouse.get_pos() - obj["position"]).length() < obj["radius"]:
+            if "radius" in obj and (pygame.mouse.get_pos() - obj["position"]).length() < obj["radius"]:
                 state["dragObject"] = uid
                 state["dragDelta"] = pygame.mouse.get_pos() - obj["position"]
 
@@ -56,6 +56,46 @@ def handleEvent(event):
         # Stop dragging
         if state["dragObject"] > -1:
             state["dragObject"] = -1
+
+def initialize_player():
+    uid = generate_uid(state["objects"])
+    player_image = pygame.image.load("assets/spaceship_red.png")
+
+    # Rescale the image
+    scale_factor = 0.2
+    new_size = (int(player_image.get_width() * scale_factor), int(player_image.get_height() * scale_factor))
+    player_image = pygame.transform.scale(player_image, new_size)
+
+    player = {
+        "position": pygame.Vector2(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2),
+        "velocity": pygame.Vector2(0, 0),
+        "radius": max(new_size) / 2,  # Approximate radius for collision
+         "image": player_image,
+        "image_rect": player_image.get_rect(center=(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2))
+    }
+    state["objects"][uid] = player
+    state["player_uid"] = uid
+
+def update_player():
+    keys = pygame.key.get_pressed()
+    player = state["objects"][state["player_uid"]]
+
+    speed = 75  # Adjust Player speed as necessary
+
+    # Simple movement logic: Adjust velocity based on key presses
+    player["velocity"] = pygame.Vector2(0, 0)
+    if keys[pygame.K_w]:
+        player["velocity"].y = -speed * state["dt"]
+    if keys[pygame.K_s]:
+        player["velocity"].y = speed * state["dt"]
+    if keys[pygame.K_a]:
+        player["velocity"].x = -speed * state["dt"]
+    if keys[pygame.K_d]:
+        player["velocity"].x = speed * state["dt"]
+
+    # Update player position
+    player["position"] += player["velocity"]
+    player["image_rect"].center = player["position"]
 
 # Run every frame.
 # Place here the code that changes the state of the game in some way every frame.
@@ -69,6 +109,9 @@ def update():
                 obj["position"] = pygame.mouse.get_pos() - state["dragDelta"]
                 break
 
+    update_player()
+    physics.update(state["dt"], state["objects"], state["bounds"])
+
 # Run every frame.
 # Place here the code that draws on the screen every frame.
 def draw():
@@ -76,11 +119,15 @@ def draw():
     global state
 
     # Background
-    state["screen"].fill((32, 32, 32))
+    state["screen"].blit(state["background"], (0, 0))
 
     # Circles
     for uid, obj in state["objects"].items():
-        pygame.draw.circle(state["screen"], obj["color"], obj["position"], obj["radius"])
+        if "color" in obj and "radius" in obj:
+            pygame.draw.circle(state["screen"], obj["color"], obj["position"], obj["radius"])
+        elif "image" in obj:
+            state["screen"].blit(obj["image"], obj["image_rect"])
+
 
 ################################
 
@@ -102,7 +149,7 @@ if __name__ == "__main__":
     pygame.init()
     pygame.display.set_caption(WINDOW_TITLE)
 
-    # The state dictionary holds all the global variables some of the core functions such as update() and handleEvent() need.
+    # The state dictionary holds all the global variables some core functions such as update() and handleEvent() need.
     # The keys are variable name strings and the values are the corresponding variable values.
     # Every function that needs access to this global program state must have a line containing 'global state'.
     state = {}
@@ -118,6 +165,8 @@ if __name__ == "__main__":
 
     state["bounds"] = [pygame.Vector2(0, 0), pygame.Vector2(WINDOW_WIDTH, WINDOW_HEIGHT)]
     state["objects"] = {}
+
+    state["background"] = pygame.image.load("assets/space.png")
 
     colors = [
         ( 90, 200,  20),
@@ -149,6 +198,8 @@ if __name__ == "__main__":
 #    state["objects"][uid2]["radius"] = 150
 #    state["objects"][uid2]["color"] = (255, 60, 60)
 
+    initialize_player()
+
     physics.begin()
 
     # Program loop
@@ -173,6 +224,6 @@ if __name__ == "__main__":
         pygame.display.flip()
 
         # Limit the framerate
-        state["dt"] = state["clock"].tick(FPS_LIMIT)
+        state["dt"] = state["clock"].tick(FPS_LIMIT) / 100  # Correct dt calculation
 
     pygame.quit()
