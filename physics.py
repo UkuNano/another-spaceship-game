@@ -1,112 +1,157 @@
 import pygame
 
-_collisions = []
+def solveCollision(collision):
+    # All collisions are perfectly elastic
 
-def begin():
-    print("Hi from physics.py")
+    # Impulse must be conserved:
+    #   m1u1 + m2u2 = m1v1 + m2v2
 
-def update(dt, objects, bounds):
-    global _collisions
+    # Kinetic energy must be conserved:
+    #   m1(u1)^2 + m2(u2)^2 = m1(v1)^2 + m2(v2)^2
+    # (after cancelling out the 1/2)
 
-    # Forget collisions from the previous frame
-    _collisions = []
+    # Solving for v1 and v2 yields:
+    #   v1 = u1 + 2m2(u2 - u1)/(m1 + m2)
+    #   v2 = u2 + 2m1(u1 - u2)/(m1 + m2)
 
-    # Collisions between circles
+    # Source: S. Targ, "Teoreetiline mehaanika", 1966
+
+    m1 = collision[0]["mass"]
+    m2 = collision[1]["mass"]
+
+    collisionAxis = collision[0]["displacement"].normalize()
+
+    u1 = collisionAxis.dot(collision[0]["velocity"])
+    u2 = collisionAxis.dot(collision[1]["velocity"])
+
+     # Axis perpendicular to the normal
+    otherAxis = pygame.Vector2(-collisionAxis.y, collisionAxis.x)
+
+    # Components of velocities perpendicular to the normal which aren't affected by the collision
+    other_u1 = otherAxis.dot(collision[0]["velocity"])
+    other_u2 = otherAxis.dot(collision[1]["velocity"])
+
+    v1 = u1 + 2 * m2/(m1 + m2) * (u2 - u1)
+    v2 = u2 + 2 * m1/(m1 + m2) * (u1 - u2)
+
+    return [other_u1 * otherAxis + v1 * collisionAxis, 
+            other_u2 * otherAxis + v2 * collisionAxis]
+
+def findCircleCollisions(objects):
+    collisions = []
+
     for uid1, obj1 in objects.items():
-        if "radius" not in obj1:
-            continue  # Skip objects without a radius
+        if "radius" not in obj1 or "velocity" not in obj1:
+            continue  # Skip objects without a radius or a velocity
 
         for uid2, obj2 in objects.items():
-            if uid1 == uid2 or "radius" not in obj2:
-                continue  # Skip same object and objects without a radius
+            if uid1 == uid2 or "radius" not in obj2 or "velocity" not in obj2:
+                continue  # Skip same object and objects without a radius or a velocity
 
             if (obj1["position"] - obj2["position"]).length() < obj1["radius"] + obj2["radius"]:
                 # Check if the collision has been registered before
                 isNew = True
-                for collision in _collisions:
+                for collision in collisions:
                     if (collision[0]["uid"] == uid1 and collision[1]["uid"] == uid2) or \
                             (collision[0]["uid"] == uid2 and collision[1]["uid"] == uid1):
                         isNew = False
                         break
 
-                if not isNew: continue
+                if not isNew:
+                    continue
 
                 distance = (obj1["position"] - obj2["position"]).length()
-                delta = (obj1["position"] - obj2["position"]).normalize() * (
+                displacement = (obj1["position"] - obj2["position"]).normalize() * (
                             obj1["radius"] + obj2["radius"] - distance) / 2
 
-                collision = [{}, {}]
-                collision[0]["uid"] = uid1
-                collision[0]["position"] = obj1["position"]  # For debug purposes
-                collision[0]["delta"] = delta
-                collision[1]["uid"] = uid2
-                collision[1]["position"] = obj2["position"]  # For debug purposes
-                collision[1]["delta"] = -delta
+                collision = [{
+                    "uid": uid1,
+                    "velocity": obj1["velocity"],
+                    "mass": obj1["mass"],
+                    "displacement": displacement
+                }, {
+                    "uid": uid2,
+                    "velocity": obj2["velocity"],
+                    "mass": obj2["mass"],
+                    "displacement": -displacement
+                }]
 
-                _collisions.append(collision)
+                collisions.append(collision)
 
-    # Collisions with world boundaries
+    return collisions
+
+def findBoundaryCollisions(objects, bounds):
+    collisions = []
+
     for uid, obj in objects.items():
         if "radius" not in obj:
             continue  # Skip objects without a radius
 
-        delta = pygame.Vector2(0, 0)
+        displacement = pygame.Vector2(0, 0)
 
         # Not using elif here and using +=, because a circle might intersect multiple borders (at a corner)
 
-        if obj["position"].x - obj["radius"] < bounds[0].x:
-            delta += pygame.Vector2(obj["radius"] - obj["position"].x + bounds[0].x, 0)
+        if obj["position"].x - obj["radius"] < bounds.x:
+            displacement += pygame.Vector2(obj["radius"] - obj["position"].x + bounds.x, 0)
 
-        if obj["position"].x + obj["radius"] > bounds[1].x:
-            delta += pygame.Vector2(bounds[1].x - obj["position"].x - obj["radius"], 0)
+        if obj["position"].x + obj["radius"] > bounds.w:
+            displacement += pygame.Vector2(bounds.w - obj["position"].x - obj["radius"], 0)
 
-        if obj["position"].y - obj["radius"] < bounds[0].y:
-            delta += pygame.Vector2(0, obj["radius"] - obj["position"].y + bounds[0].y)
+        if obj["position"].y - obj["radius"] < bounds.y:
+            displacement += pygame.Vector2(0, obj["radius"] - obj["position"].y + bounds.y)
 
-        if obj["position"].y + obj["radius"] > bounds[1].y:
-            delta += pygame.Vector2(0, bounds[1].y - obj["position"].y - obj["radius"])
+        if obj["position"].y + obj["radius"] > bounds.h:
+            displacement += pygame.Vector2(0, bounds.h - obj["position"].y - obj["radius"])
 
-        if abs(delta.length()) < 0.001: continue
+        # No collisions with borders
+        if abs(displacement.length()) < 0.001:
+            continue
 
-        collision = [{}, {}]
-        collision[0]["uid"] = uid
-        collision[0]["position"] = obj["position"] # For debug purposes
-        collision[0]["delta"] = delta
-        collision[1]["uid"] = -1
-        collision[1]["position"] = obj["position"] - obj["radius"] * delta.normalize() # For debug purposes
-        collision[1]["delta"] = pygame.Vector2(0, 0)
+        collision = [{
+            "uid": uid,
+            "velocity": obj["velocity"],
+            "mass": obj["mass"],
+            "displacement": displacement
+        }, { # An immovable wall with infinite mass
+            "uid": -1,
+            "velocity": pygame.Vector2(0, 0),
+            "mass": 1000000000,
+            "displacement": pygame.Vector2(0, 0)
+        }]
         
-        _collisions.append(collision)
+        collisions.append(collision)
+
+    return collisions
+
+def update(dt, objects, bounds, eventType):
+    circleCollisions = findCircleCollisions(objects)
+    boundaryCollisions = findBoundaryCollisions(objects, bounds)
+
+    collisions = circleCollisions + boundaryCollisions
 
     # Collision response
-    for collision in _collisions:
+    for collision in collisions:
+        velocities = solveCollision(collision)
+
         if collision[0]["uid"] >= 0:
-            objects[collision[0]["uid"]]["position"] += collision[0]["delta"]
+            objects[collision[0]["uid"]]["position"] += collision[0]["displacement"]
+            objects[collision[0]["uid"]]["velocity"] = velocities[0]
 
         if collision[1]["uid"] >= 0:
-            objects[collision[1]["uid"]]["position"] += collision[1]["delta"]
+            objects[collision[1]["uid"]]["position"] += collision[1]["displacement"]
+            objects[collision[1]["uid"]]["velocity"] = velocities[1]
 
-def drawDebug(screen):
-    global _collisions
+        # Emit collision event
+        if collision[0]["uid"] >= 0 and collision[1]["uid"] >= 0:
+            attributes = {"uid1": collision[0]["uid"], "uid2": collision[1]["uid"]}
+            collisionEvent = pygame.event.Event(eventType, attributes)
 
-    for collision in _collisions:
-        pos1 = collision[0]["position"]
-        delta1 = collision[0]["delta"]
-        pos2 = collision[1]["position"]
-        delta2 = collision[1]["delta"]
+            pygame.event.post(collisionEvent)
 
-        pygame.draw.rect(screen, (255, 0, 255), pygame.Rect(pos1 - (5, 5), (10, 10)))
-        pygame.draw.line(screen, (255, 0, 255), pos1, pos1 + delta1, width=3)
+    # Movement
+    for uid, obj in objects.items():
+        if "velocity" not in obj:
+            continue  # Skip objects without a velocity
 
-        pygame.draw.rect(screen, (255, 0, 255), pygame.Rect(pos2 - (5, 5), (10, 10)))
-        pygame.draw.line(screen, (255, 0, 255), pos2, pos2 + delta2, width=3)
+        obj["position"] += obj["velocity"] * dt
 
-#def handleCollisions(dt, objects):
-#    global _collisions
-#
-#    for collision in _collisions:
-#        if collision[0]["uid"] >= 0:
-#            objects[collision[0]["uid"]]["position"] += collision[0]["delta"]
-#
-#        if collision[1]["uid"] >= 0:
-#            objects[collision[1]["uid"]]["position"] += collision[1]["delta"]

@@ -9,8 +9,8 @@ import physics
 
 ################################
 
-WINDOW_WIDTH = 640
-WINDOW_HEIGHT = 480
+WINDOW_WIDTH = 1280
+WINDOW_HEIGHT = 960
 WINDOW_TITLE = "Another spaceship game"
 FPS_LIMIT = 60
 
@@ -57,6 +57,9 @@ def handleEvent(event):
         if state["dragObject"] > -1:
             state["dragObject"] = -1
 
+    elif event.type == state["collisionEventType"]:
+        print(F"Collision: UID1 = {event.__dict__['uid1']} and UID2 = {event.__dict__['uid2']} ")
+
 def initialize_player():
     uid = generate_uid(state["objects"])
     player_image = pygame.image.load("assets/spaceship_red.png")
@@ -70,6 +73,7 @@ def initialize_player():
         "position": pygame.Vector2(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2),
         "velocity": pygame.Vector2(0, 0),
         "radius": max(new_size) / 2,  # Approximate radius for collision
+          "mass": max(new_size)**3 / 8,
          "image": player_image,
         "image_rect": player_image.get_rect(center=(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2))
     }
@@ -80,21 +84,21 @@ def update_player():
     keys = pygame.key.get_pressed()
     player = state["objects"][state["player_uid"]]
 
-    speed = 75  # Adjust Player speed as necessary
+    speed = 300  # Adjust Player speed as necessary
 
     # Simple movement logic: Adjust velocity based on key presses
     player["velocity"] = pygame.Vector2(0, 0)
     if keys[pygame.K_w]:
-        player["velocity"].y = -speed * state["dt"]
+        player["velocity"].y = -speed
     if keys[pygame.K_s]:
-        player["velocity"].y = speed * state["dt"]
+        player["velocity"].y = speed
     if keys[pygame.K_a]:
-        player["velocity"].x = -speed * state["dt"]
+        player["velocity"].x = -speed
     if keys[pygame.K_d]:
-        player["velocity"].x = speed * state["dt"]
+        player["velocity"].x = speed
 
     # Update player position
-    player["position"] += player["velocity"]
+    #player["position"] += player["velocity"] * state["dt"]
     player["image_rect"].center = player["position"]
 
 # Run every frame.
@@ -110,7 +114,7 @@ def update():
                 break
 
     update_player()
-    physics.update(state["dt"], state["objects"], state["bounds"])
+    #physics.update(state["dt"], state["objects"], state["bounds"])
 
 # Run every frame.
 # Place here the code that draws on the screen every frame.
@@ -152,21 +156,20 @@ if __name__ == "__main__":
     # The state dictionary holds all the global variables some core functions such as update() and handleEvent() need.
     # The keys are variable name strings and the values are the corresponding variable values.
     # Every function that needs access to this global program state must have a line containing 'global state'.
-    state = {}
+    state = {
+        "screen": pygame.display.set_mode([WINDOW_WIDTH, WINDOW_HEIGHT]),
+        "clock": pygame.time.Clock(),
+        "dt": 1 / FPS_LIMIT, # Deltatime aka time between the current frame and the last frame.
+        "running": True,
+        "collisionEventType": pygame.event.custom_type(),
 
-    state["screen"] = pygame.display.set_mode([WINDOW_WIDTH, WINDOW_HEIGHT])
-    state["clock"] = pygame.time.Clock()
+        "dragObject": -1, # The UID of the object being dragged. Is set to -1 when not dragging because UIDs are only positive.
+        "dragDelta": pygame.Vector2(0, 0), # The difference between the object's position and the mouse's position
 
-    state["dt"] = 1 / FPS_LIMIT # Deltatime aka time between the current frame and the last frame.
-    state["running"] = True
-
-    state["dragObject"] = -1 # The UID of the object being dragged. Is set to -1 when not dragging because UIDs are only positive.
-    state["dragDelta"] = pygame.Vector2(0, 0) # The difference between the object's position and the mouse's position
-
-    state["bounds"] = [pygame.Vector2(0, 0), pygame.Vector2(WINDOW_WIDTH, WINDOW_HEIGHT)]
-    state["objects"] = {}
-
-    state["background"] = pygame.image.load("assets/space.png")
+        "bounds": pygame.Rect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT),
+        "background": pygame.image.load("assets/space.png"),
+        "objects": {}
+    }
 
     colors = [
         ( 90, 200,  20),
@@ -181,26 +184,18 @@ if __name__ == "__main__":
         uid = generate_uid(state["objects"])
         x = random.randrange(50, WINDOW_WIDTH - 50, 1)
         y = random.randrange(50, WINDOW_HEIGHT - 50, 1)
-        state["objects"][uid] = {}
-        state["objects"][uid]["position"] = pygame.Vector2(x, y)
-        state["objects"][uid]["radius"] = random.randrange(10, 100, 1)
-        state["objects"][uid]["color"] = random.choice(colors)
+        r = random.randrange(10, 100, 1)
 
-#    uid1 = generate_uid(state["objects"])
-#    state["objects"][uid1] = {}
-#    state["objects"][uid1]["position"] = pygame.Vector2(WINDOW_WIDTH / 2 - 128, WINDOW_HEIGHT / 2)
-#    state["objects"][uid1]["radius"] = 100
-#    state["objects"][uid1]["color"] = (90, 200, 20)
-#
-#    uid2 = generate_uid(state["objects"])
-#    state["objects"][uid2] = {}
-#    state["objects"][uid2]["position"] = pygame.Vector2(WINDOW_WIDTH / 2 + 128, WINDOW_HEIGHT / 2)
-#    state["objects"][uid2]["radius"] = 150
-#    state["objects"][uid2]["color"] = (255, 60, 60)
+        state["objects"][uid] = {
+            "position": pygame.Vector2(x, y),
+            "velocity": pygame.Vector2(0, 0),
+            "mass": r**3, # With constant density mass is proportional to radius cubed
+            "radius": r,
+            "color": random.choice(colors),
+            "tag": "asteroid"
+        }
 
     initialize_player()
-
-    physics.begin()
 
     # Program loop
     while state["running"]:
@@ -215,15 +210,14 @@ if __name__ == "__main__":
         # At the moment atleast 2 substeps are necessary
         substeps = 2
         for i in range(substeps):
-            physics.update(state["dt"]/substeps, state["objects"], state["bounds"])
+            physics.update(state["dt"]/substeps, state["objects"], state["bounds"], state["collisionEventType"])
 
         draw()
-        #physics.drawDebug(state["screen"]) # Draw on top
 
         # Update the window
         pygame.display.flip()
 
         # Limit the framerate
-        state["dt"] = state["clock"].tick(FPS_LIMIT) / 100  # Correct dt calculation
+        state["dt"] = state["clock"].tick(FPS_LIMIT) / 1000  # Correct dt calculation (tick() returns milliseconds)
 
     pygame.quit()
