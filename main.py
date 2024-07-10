@@ -27,21 +27,21 @@ def handleEvent(event):
 
     # A key has been pressed
     elif event.type == pygame.KEYDOWN:
-        keys = pygame.key.get_pressed()
+        if event.key == pygame.K_SPACE:
+            # Spacebar pressed
+            # print("Spacebar has been pressed")
+            fire_bullet()
+            state["gun_sound"].play()  # Play the gun sound
 
-        if keys[pygame.K_SPACE]:
-            #print("Spacebar has been pressed")
-            physics.handleCollisions(state["dt"], state["objects"])
-
-        if keys[pygame.K_ESCAPE]:
+        if event.key == pygame.K_ESCAPE:
+            # Escape key pressed
             state["running"] = False
 
     # A key has been released
     elif event.type == pygame.KEYUP:
-        keys = pygame.key.get_pressed()
-
-        #if not keys[pygame.K_SPACE]:
-            #print("Spacebar has been released")
+        if event.key == pygame.K_SPACE:
+            # print("Spacebar has been released")
+            pass
 
     # Right mouse button has been pressed
     elif event.type == pygame.MOUSEBUTTONDOWN and pygame.mouse.get_pressed()[0]:
@@ -84,7 +84,7 @@ def update_player():
     keys = pygame.key.get_pressed()
     player = state["objects"][state["player_uid"]]
 
-    speed = 300  # Adjust Player speed as necessary
+    speed = 350  # Adjust Player speed as necessary
 
     # Simple movement logic: Adjust velocity based on key presses
     player["velocity"] = pygame.Vector2(0, 0)
@@ -98,8 +98,27 @@ def update_player():
         player["velocity"].x = speed
 
     # Update player position
-    #player["position"] += player["velocity"] * state["dt"]
+    # player["position"] += player["velocity"] * state["dt"]
     player["image_rect"].center = player["position"]
+
+def update_bullets():
+    for bullet in state["bullets"][:]:
+        bullet["position"] += bullet["velocity"] * state["dt"]
+        bullet["rect"].center = bullet["position"]
+        if bullet["position"].y < 0:
+            state["bullets"].remove(bullet)
+
+def fire_bullet():
+    player = state["objects"][state["player_uid"]]
+    bullet_image = state["bullet_image"]
+    bullet_rect = bullet_image.get_rect(center=(player["position"].x, player["position"].y - player["radius"]))
+    bullet = {
+        "position": pygame.Vector2(player["position"].x, player["position"].y - player["radius"]),
+        "velocity": pygame.Vector2(0, -500),
+        "image": bullet_image,
+        "rect": bullet_rect
+    }
+    state["bullets"].append(bullet)
 
 # Run every frame.
 # Place here the code that changes the state of the game in some way every frame.
@@ -114,6 +133,7 @@ def update():
                 break
 
     update_player()
+    update_bullets()
     #physics.update(state["dt"], state["objects"], state["bounds"])
 
 # Run every frame.
@@ -131,6 +151,8 @@ def draw():
             pygame.draw.circle(state["screen"], obj["color"], obj["position"], obj["radius"])
         elif "image" in obj:
             state["screen"].blit(obj["image"], obj["image_rect"])
+    for bullet in state["bullets"]:
+        state["screen"].blit(bullet["image"], bullet["rect"])
 
 
 ################################
@@ -168,7 +190,10 @@ if __name__ == "__main__":
 
         "bounds": pygame.Rect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT),
         "background": pygame.image.load("assets/space.png"),
-        "objects": {}
+        "objects": {},
+        "gun_sound": pygame.mixer.Sound("assets/Gun+Silencer.mp3"),  # Load the gun sound
+        "bullet_image": pygame.transform.scale(pygame.image.load("assets/bullet.png"), (60, 70)),  # Adjust the size as needed
+        "bullets": []
     }
 
     colors = [

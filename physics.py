@@ -1,5 +1,6 @@
 import pygame
 
+
 def solveCollision(collision):
     # All collisions are perfectly elastic
 
@@ -24,18 +25,19 @@ def solveCollision(collision):
     u1 = collisionAxis.dot(collision[0]["velocity"])
     u2 = collisionAxis.dot(collision[1]["velocity"])
 
-     # Axis perpendicular to the normal
+    # Axis perpendicular to the normal
     otherAxis = pygame.Vector2(-collisionAxis.y, collisionAxis.x)
 
     # Components of velocities perpendicular to the normal which aren't affected by the collision
     other_u1 = otherAxis.dot(collision[0]["velocity"])
     other_u2 = otherAxis.dot(collision[1]["velocity"])
 
-    v1 = u1 + 2 * m2/(m1 + m2) * (u2 - u1)
-    v2 = u2 + 2 * m1/(m1 + m2) * (u1 - u2)
+    v1 = u1 + 2 * m2 / (m1 + m2) * (u2 - u1)
+    v2 = u2 + 2 * m1 / (m1 + m2) * (u1 - u2)
 
-    return [other_u1 * otherAxis + v1 * collisionAxis, 
+    return [other_u1 * otherAxis + v1 * collisionAxis,
             other_u2 * otherAxis + v2 * collisionAxis]
+
 
 def findCircleCollisions(objects):
     collisions = []
@@ -62,7 +64,7 @@ def findCircleCollisions(objects):
 
                 distance = (obj1["position"] - obj2["position"]).length()
                 displacement = (obj1["position"] - obj2["position"]).normalize() * (
-                            obj1["radius"] + obj2["radius"] - distance) / 2
+                        obj1["radius"] + obj2["radius"] - distance) / 2
 
                 collision = [{
                     "uid": uid1,
@@ -79,6 +81,7 @@ def findCircleCollisions(objects):
                 collisions.append(collision)
 
     return collisions
+
 
 def findBoundaryCollisions(objects, bounds):
     collisions = []
@@ -112,16 +115,17 @@ def findBoundaryCollisions(objects, bounds):
             "velocity": obj["velocity"],
             "mass": obj["mass"],
             "displacement": displacement
-        }, { # An immovable wall with infinite mass
+        }, {  # An immovable wall with infinite mass
             "uid": -1,
             "velocity": pygame.Vector2(0, 0),
             "mass": 1000000000,
             "displacement": pygame.Vector2(0, 0)
         }]
-        
+
         collisions.append(collision)
 
     return collisions
+
 
 def update(dt, objects, bounds, eventType):
     circleCollisions = findCircleCollisions(objects)
@@ -154,4 +158,3 @@ def update(dt, objects, bounds, eventType):
             continue  # Skip objects without a velocity
 
         obj["position"] += obj["velocity"] * dt
-
