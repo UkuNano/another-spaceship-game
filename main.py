@@ -4,13 +4,14 @@
 # Pygame docs: https://www.pygame.org/docs/
 import pygame
 import random
+import math
 
 import physics
 
 ################################
 
 WINDOW_WIDTH = 1280
-WINDOW_HEIGHT = 960
+WINDOW_HEIGHT = int(WINDOW_WIDTH / 16 * 9)
 WINDOW_TITLE = "Another spaceship game"
 FPS_LIMIT = 60
 
@@ -36,6 +37,9 @@ def handleEvent(event):
         if event.key == pygame.K_ESCAPE:
             # Escape key pressed
             state["running"] = False
+        
+        if event.key == pygame.K_c:
+            state["drawColliders"] = not state["drawColliders"]
 
     # A key has been released
     elif event.type == pygame.KEYUP:
@@ -58,10 +62,16 @@ def handleEvent(event):
             state["dragObject"] = -1
 
     elif event.type == state["collisionEventType"]:
-        print(F"Collision: UID1 = {event.__dict__['uid1']} and UID2 = {event.__dict__['uid2']} ")
+        print(F"Collision: UID1 = {event.uid1} and UID2 = {event.uid2}")
+        
+#        if event.uid1 == state["player_uid"]:
+#            removeObject(event.uid2)
+#
+#        if event.uid2 == state["player_uid"]:
+#            removeObject(event.uid1)
 
 def initialize_player():
-    uid = generate_uid(state["objects"])
+    uid = generate_uid()
     player_image = pygame.image.load("assets/spaceship_red.png")
 
     # Rescale the image
@@ -69,13 +79,19 @@ def initialize_player():
     new_size = (int(player_image.get_width() * scale_factor), int(player_image.get_height() * scale_factor))
     player_image = pygame.transform.scale(player_image, new_size)
 
+    collider = {
+        "position": pygame.Vector2(0, 0), # Position relative to object
+        "radius": max(new_size) / 2  # Approximate radius for collision
+    }
+
     player = {
         "position": pygame.Vector2(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2),
         "velocity": pygame.Vector2(0, 0),
         "radius": max(new_size) / 2,  # Approximate radius for collision
           "mass": max(new_size)**3 / 8,
          "image": player_image,
-        "image_rect": player_image.get_rect(center=(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2))
+        "image_rect": player_image.get_rect(center=(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2)),
+        "colliders": [collider]
     }
     state["objects"][uid] = player
     state["player_uid"] = uid
@@ -151,24 +167,54 @@ def draw():
             pygame.draw.circle(state["screen"], obj["color"], obj["position"], obj["radius"])
         elif "image" in obj:
             state["screen"].blit(obj["image"], obj["image_rect"])
+    
     for bullet in state["bullets"]:
         state["screen"].blit(bullet["image"], bullet["rect"])
+    
+    
+    if not state["drawColliders"]:
+        return
+    
+    for uid, obj in state["objects"].items():
+        if not "colliders" in obj:
+            continue
+        
+        for collider in obj["colliders"]:
+            pos = obj["position"] + collider["position"]
+            r = collider["radius"]
+            pygame.draw.circle(state["screen"], (50, 50, 50), pos, r, width=3)
+            pygame.draw.circle(state["screen"], (50, 255, 30), pos, r, width=1)
 
 
-################################
+############### OBJECT MANAGEMENT #################
 
 # Generates a new unique ID number. Necessary for procedurally creating new objects and referencing them later on.
 # TODO: In the future objects will be destroyed, but UIDs would still increase indefinetly. Make it smarter.
-def generate_uid(objects):
+def generate_uid():
+    global state
+
     largest_uid = -1
 
-    for uid in objects.keys():
+    for uid in state["objects"].keys():
         if uid > largest_uid:
             largest_uid = uid
 
     return largest_uid + 1
 
-################################
+def createObject(position = pygame.Vector2(0, 0)):
+    global state
+
+    uid = generate_uid()
+    state["objects"][uid] = {"position": position}
+    
+    return uid
+
+def removeObject(uid):
+    global state
+
+    del state["objects"][uid]
+
+###################################################
 
 # Program entry point
 if __name__ == "__main__":
@@ -188,6 +234,8 @@ if __name__ == "__main__":
         "dragObject": -1, # The UID of the object being dragged. Is set to -1 when not dragging because UIDs are only positive.
         "dragDelta": pygame.Vector2(0, 0), # The difference between the object's position and the mouse's position
 
+        "drawColliders": False,
+
         "bounds": pygame.Rect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT),
         "background": pygame.image.load("assets/space.png"),
         "objects": {},
@@ -204,18 +252,37 @@ if __name__ == "__main__":
         (230, 230, 230)
     ]
 
-    # Create random circles
+    # Create randomized circles
     for i in range(10):
-        uid = generate_uid(state["objects"])
+        uid = createObject() # Create a new object
         x = random.randrange(50, WINDOW_WIDTH - 50, 1)
         y = random.randrange(50, WINDOW_HEIGHT - 50, 1)
-        r = random.randrange(10, 100, 1)
+        radius = random.randrange(10, 100, 1)
+        colliderCount = random.randrange(2, 5, 1)
+        
+        # Add colliders which are circles that determine where the object can collide
+        # A collider's position is relative to its object's position
+        # Colliders of the same object can overlap
+        colliders = []
+
+        for i in range(colliderCount):
+            # Place the colliders in a circular pattern
+            colliderX = radius/2*math.cos(2*math.pi/colliderCount*i)
+            colliderY = radius/2*math.sin(2*math.pi/colliderCount*i)
+
+            collider = {
+                "position": pygame.Vector2(colliderX, colliderY),
+                "radius": radius/2
+            }
+
+            colliders.append(collider)
 
         state["objects"][uid] = {
-            "position": pygame.Vector2(x, y),
-            "velocity": pygame.Vector2(0, 0),
-            "mass": r**3, # With constant density mass is proportional to radius cubed
-            "radius": r,
+            "position": pygame.Vector2(x, y), # Every object is required to have a position
+            "velocity": pygame.Vector2(0, 0), # Necessary for physics
+            "mass": radius**3, # With constant density mass is proportional to radius cubed, necessary for physics
+            "colliders": colliders, # Necessary for physics
+            "radius": radius,
             "color": random.choice(colors),
             "tag": "asteroid"
         }
@@ -231,11 +298,7 @@ if __name__ == "__main__":
         # Game code goes there
         update()
 
-        # Physics updates
-        # At the moment atleast 2 substeps are necessary
-        substeps = 2
-        for i in range(substeps):
-            physics.update(state["dt"]/substeps, state["objects"], state["bounds"], state["collisionEventType"])
+        physics.update(state["dt"], state["objects"], state["bounds"], state["collisionEventType"])
 
         draw()
 
