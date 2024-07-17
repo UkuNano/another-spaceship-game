@@ -132,6 +132,17 @@ def update_player():
 
     # Update player position
     player["position"] += player["velocity"] * state["dt"]
+
+    # Ensure the player stays within the window boundaries
+    if player["position"].x - player["radius"] < 0:
+        player["position"].x = player["radius"]
+    if player["position"].x + player["radius"] > WINDOW_WIDTH:
+        player["position"].x = WINDOW_WIDTH - player["radius"]
+    if player["position"].y - player["radius"] < 0:
+        player["position"].y = player["radius"]
+    if player["position"].y + player["radius"] > WINDOW_HEIGHT:
+        player["position"].y = WINDOW_HEIGHT - player["radius"]
+
     player["image_rect"].center = player["position"]
 
 def update_bullets():
@@ -220,6 +231,21 @@ def update():
             speed = obj["velocity"].length()
             if speed > MAX_SPEED:
                 obj["velocity"].scale_to_length(MAX_SPEED)
+
+    for uid, obj in list(state["objects"].items()):
+        if "radius" in obj:
+            if obj["position"].x - obj["radius"] < 0:
+                obj["position"].x = obj["radius"]
+                obj["velocity"].x *= -1  # Reflect velocity
+            if obj["position"].x + obj["radius"] > WINDOW_WIDTH:
+                obj["position"].x = WINDOW_WIDTH - obj["radius"]
+                obj["velocity"].x *= -1  # Reflect velocity
+            if obj["position"].y - obj["radius"] < 0:
+                obj["position"].y = obj["radius"]
+                obj["velocity"].y *= -1  # Reflect velocity
+            if obj["position"].y + obj["radius"] > WINDOW_HEIGHT:
+                obj["position"].y = WINDOW_HEIGHT - obj["radius"]
+                obj["velocity"].y *= -1  # Reflect velocity
 
 # Run every frame.
 # Place here the code that draws on the screen every frame.

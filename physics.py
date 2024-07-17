@@ -44,7 +44,7 @@ def checkObjectProperties(obj):
 
 
 def checkCollisionCircleCircle(pos1, r1, pos2, r2):
-    return (pos1 - pos2).length_squared() < (r1 + r2)**2
+    return (pos1 - pos2).length_squared() < (r1 + r2) ** 2
 
 def getDisplacementCircleCircle(pos1, r1, pos2, r2):
     difference = pos1 - pos2
@@ -73,19 +73,19 @@ def findObjectCollisions(objects):
             # If we have already found a collision between these objects then skip
             if not collisionFound:
                 continue
-            
+
             for collider1 in obj1["colliders"]:
                 for collider2 in obj2["colliders"]:
                     pos1 = obj1["position"] + collider1["position"]
                     pos2 = obj2["position"] + collider2["position"]
                     r1 = collider1["radius"]
                     r2 = collider2["radius"]
-                    
+
                     if not checkCollisionCircleCircle(pos1, r1, pos2, r2):
                         continue
-                    
+
                     displacement = getDisplacementCircleCircle(pos1, r1, pos2, r2)
-        
+
                     collision = [{
                         "uid": uid1,
                         "velocity": obj1["velocity"],
@@ -97,7 +97,7 @@ def findObjectCollisions(objects):
                         "mass": obj2["mass"],
                         "displacement": -displacement
                     }]
-    
+
                     collisions.append(collision)
 
     return collisions
@@ -111,29 +111,29 @@ def findBoundaryCollisions(objects, bounds):
             continue  # Skip objects without a collider or a velocity
 
         finalDisplacement = pygame.Vector2(0, 0)
-        
+
         for collider in obj["colliders"]:
             pos = obj["position"] + collider["position"]
             radius = collider["radius"]
             displacement = pygame.Vector2(0, 0)
-    
+
             # Not using elif here and using +=, because a circle might intersect multiple borders (at a corner)
-    
+
             if pos.x - radius < bounds.x:
                 displacement += pygame.Vector2(radius - pos.x + bounds.x, 0)
-    
+
             if pos.x + radius > bounds.w:
                 displacement += pygame.Vector2(bounds.w - pos.x - radius, 0)
-    
+
             if pos.y - radius < bounds.y:
                 displacement += pygame.Vector2(0, radius - pos.y + bounds.y)
-    
+
             if pos.y + radius > bounds.h:
                 displacement += pygame.Vector2(0, bounds.h - pos.y - radius)
-            
+
             if abs(displacement.x) > abs(finalDisplacement.x):
                 finalDisplacement.x = displacement.x
-            
+
             if abs(displacement.y) > abs(finalDisplacement.y):
                 finalDisplacement.y = displacement.y
 
